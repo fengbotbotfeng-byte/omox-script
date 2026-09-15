@@ -15,52 +15,99 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 local PasswordInput = ""
 
 -- ---------------------------------------------------------
--- TAMPILAN LOGIN PASSWORD
+-- FLOATING BUTTON / WIDGET AWAL (KECIL ELEGAN DI SCREEN)
 -- ---------------------------------------------------------
-local PassWindow = Fluent:CreateWindow({
-    Title = SCRIPT_NAME .. " ✦ Authentication",
-    SubTitle = "Developer: " .. DEVELOPER_NAME,
-    TabWidth = 160,
-    Size = UDim2.fromOffset(420, 240),
-    Theme = "Amethyst",
-    MinimizeKey = Enum.KeyCode.RightControl
-})
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "OMOXPRO_Widget"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
 
-local PassTab = PassWindow:AddTab({ Title = "Login", Icon = "lock" })
+local FloatBtn = Instance.new("ImageButton")
+FloatBtn.Name = "LogoWidget"
+FloatBtn.Parent = ScreenGui
+FloatBtn.Size = UDim2.new(0, 55, 0, 55)
+FloatBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+FloatBtn.Image = SCRIPT_LOGO_URL
+FloatBtn.BackgroundColor3 = Color3.fromRGB(30, 20, 50)
+FloatBtn.Active = true
+FloatBtn.Draggable = true -- Bisa digeser/didrag di layar HP
 
-PassTab:AddInput("InputPass", {
-    Title = "Masukkan Password",
-    Default = "",
-    Placeholder = "Password di sini...",
-    Numeric = false,
-    Finished = true,
-    Callback = function(Value)
-        PasswordInput = Value
-    end
-})
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Parent = FloatBtn
+UIStroke.Color = Color3.fromRGB(160, 100, 255)
+UIStroke.Thickness = 2.5
 
-PassTab:AddButton({
-    Title = "Unlock Script",
-    Description = "Akses Menu Utama OMOX PRO",
-    Callback = function()
-        if PasswordInput == PASSWORD_CORRECT then
-            Fluent:Destroy()
-            task.wait(0.3)
-            LoadMainScript()
-        else
-            Fluent:Notify({
-                Title = "Password Salah!",
-                Content = "Password yang kamu masukkan tidak valid.",
-                Duration = 3
-            })
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim me = UDim.new(0, 14)
+UICorner.Parent = FloatBtn
+
+-- ---------------------------------------------------------
+-- TAMPILAN LOGIN PASSWORD (MODERN AMETHYST)
+-- ---------------------------------------------------------
+local PassWindow = nil
+
+local function ShowLoginUI()
+    if PassWindow then return end
+    
+    PassWindow = Fluent:CreateWindow({
+        Title = SCRIPT_NAME .. " ✦ Authentication",
+        SubTitle = "Developer: " .. DEVELOPER_NAME,
+        TabWidth = 140,
+        Size = UDim2.fromOffset(440, 280),
+        Theme = "Amethyst",
+        MinimizeKey = Enum.KeyCode.RightControl
+    })
+
+    local PassTab = PassWindow:AddTab({ Title = "Login", Icon = "lock" })
+
+    -- MENAMPILKAN FOTO LOGO DI MENU LOGIN
+    PassTab:AddImage("LoginLogo", {
+        Title = "OMOX PRO Access",
+        Image = SCRIPT_LOGO_URL
+    })
+
+    PassTab:AddInput("InputPass", {
+        Title = "Masukkan Password",
+        Default = "",
+        Numeric = false,
+        Finished = false,
+        Callback = function(Value)
+            PasswordInput = Value
         end
-    end
-})
+    })
+
+    PassTab:AddButton({
+        Title = "Unlock Script",
+        Description = "Akses Menu Utama OMOX PRO",
+        Callback = function()
+            local cleanInput = string.gsub(PasswordInput or "", "^%s*(.-)%s*$", "%1")
+            
+            if string.lower(cleanInput) == string.lower(PASSWORD_CORRECT) then
+                Fluent:Destroy()
+                ScreenGui:Destroy()
+                task.wait(0.3)
+                LoadMainScript()
+            else
+                Fluent:Notify({
+                    Title = "Password Salah!",
+                    Content = "Password yang kamu masukkan tidak valid.",
+                    Duration = 3
+                })
+            end
+        end
+    })
+end
+
+-- Klik Widget Melayang untuk Buka Login
+FloatBtn.MouseButton1Click:Connect(function()
+    ShowLoginUI()
+end)
 
 -- ---------------------------------------------------------
 -- SCRIPT UTAMA (ADVANCED AUTO STEAL & FLY ALL EGGS)
@@ -82,18 +129,13 @@ function LoadMainScript()
         Credits = Window:AddTab({ Title = "Info & Logo", Icon = "info" })
     }
 
-    -- TOGGLE & CONFIG VARIABLES
     local AutoAllEggsToggle = false
     local AutoRareEggsToggle = false
     local InstantHoldToggle = false
     local FlySpeed = 120
-    local BaseWaitTime = 1.5 -- Jeda default di Base agar telur tersimpan
+    local BaseWaitTime = 1.5
     local BaseCFrame = nil
 
-    -- ---------------------------------------------------------
-    -- HELPER FUNCTIONS (MELUNCUR TERBANG & CARI TELUR)
-    -- ---------------------------------------------------------
-    
     local function FlyToCFrame(targetCFrame)
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -173,7 +215,6 @@ function LoadMainScript()
         end
     })
 
-    -- MODE 1: AUTO FARM SEMUA TELUR
     Tabs.AutoFarm:AddToggle("AutoAllFarm", {
         Title = "Auto Farm SEMUA Telur (Fly + Base)",
         Default = false,
@@ -192,19 +233,14 @@ function LoadMainScript()
                         if targetPrompt then
                             local eggPart = targetPrompt.Parent:IsA("BasePart") and targetPrompt.Parent or targetPrompt.Parent:FindFirstChildWhichIsA("BasePart")
                             if eggPart then
-                                -- 1. Meluncur Terbang ke Telur
                                 FlyToCFrame(eggPart.CFrame)
                                 task.wait(0.1)
                                 
-                                -- 2. Curi Telur Instan
                                 targetPrompt.HoldDuration = 0
                                 fireproximityprompt(targetPrompt)
                                 task.wait(0.2)
                                 
-                                -- 3. Terbang Kembali ke Base
                                 FlyToCFrame(BaseCFrame)
-                                
-                                -- 4. Jeda Diam di Base (Menghindari bug telur tidak tersimpan)
                                 task.wait(BaseWaitTime)
                             end
                         end
@@ -215,7 +251,6 @@ function LoadMainScript()
         end
     })
 
-    -- MODE 2: AUTO SNIPE KHUSUS RARE
     Tabs.AutoFarm:AddToggle("AutoRareSteal", {
         Title = "Auto Snipe RARE ONLY (Secret/Eternal/Divine)",
         Default = false,
@@ -238,8 +273,6 @@ function LoadMainScript()
                                 task.wait(0.2)
                                 
                                 FlyToCFrame(BaseCFrame)
-                                
-                                -- Jeda Diam di Base
                                 task.wait(BaseWaitTime)
                             end
                         end
@@ -314,7 +347,7 @@ function LoadMainScript()
 
     Fluent:Notify({
         Title = SCRIPT_NAME,
-        Content = "Script Berhasil Di-load! Sistem Auto Farm + Safe Delay Siap.",
+        Content = "Script Berhasil Di-load! Enjoy OMOX PRO.",
         Duration = 4
     })
 end
