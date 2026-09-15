@@ -1,17 +1,18 @@
 -- =========================================================
--- SCRIPT CONFIGURATION
+-- SCRIPT INFORMATION & CONFIGURATION
 -- =========================================================
 local SCRIPT_NAME = "OMOX PRO"
 local DEVELOPER_NAME = "FENGXIU"
 local PASSWORD_CORRECT = "fengxomo"
 
--- [ LINK FOTO / LOGO SCRIPT ]
+-- [ LINK FOTO / LOGO TOP4TOP KAMU ]
 local SCRIPT_LOGO_URL = "https://f.top4top.io/p_39100kq8x0.jpg" 
 
 -- =========================================================
--- LOAD UI LIBRARY & SERVICES
+-- LOAD SERVICES & LIBRARIES
 -- =========================================================
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
@@ -26,7 +27,7 @@ local PassWindow = Fluent:CreateWindow({
     SubTitle = "Developer: " .. DEVELOPER_NAME,
     TabWidth = 160,
     Size = UDim2.fromOffset(420, 240),
-    Theme = "Sky",
+    Theme = "Amethyst", -- Tema Ungu-Biru Mewah
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
@@ -45,7 +46,7 @@ PassTab:AddInput("InputPass", {
 
 PassTab:AddButton({
     Title = "Unlock Script",
-    Description = "Verifikasi akses script OMOX PRO",
+    Description = "Akses Menu Utama OMOX PRO",
     Callback = function()
         if PasswordInput == PASSWORD_CORRECT then
             Fluent:Destroy()
@@ -53,8 +54,8 @@ PassTab:AddButton({
             LoadMainScript()
         else
             Fluent:Notify({
-                Title = "Akses Ditolak!",
-                Content = "Password salah! Silakan coba lagi.",
+                Title = "Password Salah!",
+                Content = "Password yang kamu masukkan tidak valid.",
                 Duration = 3
             })
         end
@@ -62,53 +63,119 @@ PassTab:AddButton({
 })
 
 -- ---------------------------------------------------------
--- SCRIPT UTAMA
+-- SCRIPT UTAMA (ADVANCED AUTO STEAL & FLY TARGET)
 -- ---------------------------------------------------------
 function LoadMainScript()
     local Window = Fluent:CreateWindow({
-        Title = SCRIPT_NAME,
+        Title = SCRIPT_NAME .. " ✦ Steal An Egg",
         SubTitle = "By " .. DEVELOPER_NAME,
         TabWidth = 160,
         Size = UDim2.fromOffset(580, 420),
-        Theme = "Sky",
+        Theme = "Amethyst",
         MinimizeKey = Enum.KeyCode.RightControl
     })
 
     local Tabs = {
+        AutoFarm = Window:AddTab({ Title = "Auto Target", Icon = "target" }),
         Main = Window:AddTab({ Title = "Egg Features", Icon = "egg" }),
-        Attack = Window:AddTab({ Title = "Pukul & Curi", Icon = "sword" }),
         Player = Window:AddTab({ Title = "Player", Icon = "user" }),
-        Credits = Window:AddTab({ Title = "Info", Icon = "info" })
+        Credits = Window:AddTab({ Title = "Info & Logo", Icon = "info" })
     }
 
-    local AutoStealToggle = false
+    -- TOGGLE VARIABLES
+    local AutoTargetRareToggle = false
     local InstantHoldToggle = false
-    local AttackStealToggle = false
+    local FlySpeed = 120
     local BaseCFrame = nil
 
-    -- FUNGSI MEMUKUL PRESISI (Melengkapi senjata & pemicu klik)
-    local function EquipAndHit()
-        pcall(function()
-            local char = LocalPlayer.Character
-            if not char then return end
-            
-            -- Cari alat pukul di Backpack atau Character
-            local tool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool") or char:FindFirstChildOfClass("Tool")
-            if tool then
-                tool.Parent = char
-                task.wait(0.05)
-                tool:Activate()
+    -- ---------------------------------------------------------
+    -- HELPER FUNCTIONS (TERBANG / TWEEN METHOD)
+    -- ---------------------------------------------------------
+    
+    local function FlyToCFrame(targetCFrame)
+        local char = LocalPlayer.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        local hrp = char.HumanoidRootPart
+        
+        local distance = (hrp.Position - targetCFrame.Position).Magnitude
+        local duration = distance / FlySpeed
+        
+        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame * CFrame.new(0, 3, 0)})
+        tween:Play()
+        tween.Completed:Wait()
+    end
+
+    local function GetPriorityEgg()
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and obj.Enabled then
+                local eggName = string.lower(obj.Parent.Name .. " " .. obj.ObjectText .. " " .. obj.ActionText)
+                
+                if string.find(eggName, "secret") or string.find(eggName, "eternal") or string.find(eggName, "divine") then
+                    return obj
+                end
             end
-        end)
+        end
+        return nil
     end
 
     ---------------------------------------------------------
-    -- TAB 1: EGG FEATURES
+    -- TAB 1: AUTO TARGET RARE EGGS (SECRET / ETERNAL / DIVINE)
     ---------------------------------------------------------
     
-    -- INSTANT STEAL
+    Tabs.AutoFarm:AddButton({
+        Title = "1. Set Posisi Base / Tanaman (Wajib)",
+        Description = "Berdiri di area tempat menyimpan telur lalu klik ini",
+        Callback = function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                BaseCFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
+                Fluent:Notify({
+                    Title = "Base Saved!",
+                    Content = "Lokasi penyimpanan telur berhasil didaftarkan.",
+                    Duration = 3
+                })
+            end
+        end
+    })
+
+    Tabs.AutoFarm:AddToggle("AutoRareSteal", {
+        Title = "Auto Snipe (Secret / Eternal / Divine)",
+        Default = false,
+        Callback = function(Value)
+            AutoTargetRareToggle = Value
+            task.spawn(function()
+                while AutoTargetRareToggle do
+                    pcall(function()
+                        local targetPrompt = GetPriorityEgg()
+                        
+                        if targetPrompt and BaseCFrame then
+                            local eggPart = targetPrompt.Parent:IsA("BasePart") and targetPrompt.Parent or targetPrompt.Parent:FindFirstChildWhichIsA("BasePart")
+                            
+                            if eggPart then
+                                FlyToCFrame(eggPart.CFrame)
+                                task.wait(0.1)
+                                
+                                targetPrompt.HoldDuration = 0
+                                fireproximityprompt(targetPrompt)
+                                task.wait(0.2)
+                                
+                                FlyToCFrame(BaseCFrame)
+                                task.wait(0.5)
+                            end
+                        end
+                    end)
+                    task.wait(0.2)
+                end
+            end)
+        end
+    })
+
+    ---------------------------------------------------------
+    -- TAB 2: GENERAL EGG FEATURES
+    ---------------------------------------------------------
+    
     Tabs.Main:AddToggle("InstantHold", {
-        Title = "Instant Steal (0s Hold)",
+        Title = "Instant Steal All Prompts (0s Hold)",
         Default = false,
         Callback = function(Value)
             InstantHoldToggle = Value
@@ -119,102 +186,7 @@ function LoadMainScript()
                             v.HoldDuration = 0
                         end
                     end
-                    task.wait(0.3)
-                end
-            end)
-        end
-    })
-
-    -- AUTO STEAL EGG
-    Tabs.Main:AddToggle("AutoSteal", {
-        Title = "Auto Steal Egg Loop",
-        Default = false,
-        Callback = function(Value)
-            AutoStealToggle = Value
-            task.spawn(function()
-                while AutoStealToggle do
-                    pcall(function()
-                        for _, prompt in pairs(Workspace:GetDescendants()) do
-                            if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                                fireproximityprompt(prompt)
-                            end
-                        end
-                    end)
-                    task.wait(0.05)
-                end
-            end)
-        end
-    })
-
-    ---------------------------------------------------------
-    -- TAB 2: PUKUL, AMBIL TELUR, LALU KE BASE
-    ---------------------------------------------------------
-    
-    Tabs.Attack:AddButton({
-        Title = "Set Posisi Base (Wajib)",
-        Description = "Klik ini saat kamu berdiri di area Base milikmu",
-        Callback = function()
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                BaseCFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
-                Fluent:Notify({
-                    Title = "Base Terdaftar!",
-                    Content = "Koordinat Base kamu berhasil disimpan.",
-                    Duration = 3
-                })
-            end
-        end
-    })
-
-    Tabs.Attack:AddToggle("AttackStealBase", {
-        Title = "Auto Pukul + Curi + Base",
-        Default = false,
-        Callback = function(Value)
-            AttackStealToggle = Value
-            task.spawn(function()
-                while AttackStealToggle do
-                    pcall(function()
-                        local myChar = LocalPlayer.Character
-                        if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                            
-                            -- Cari ProximityPrompt telur
-                            for _, prompt in pairs(Workspace:GetDescendants()) do
-                                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                                    local eggPos = prompt.Parent:IsA("BasePart") and prompt.Parent.Position or prompt.Parent:GetPivot().Position
-                                    
-                                    -- Cek pemain lain yang sedang memegang/dekat telur itu
-                                    for _, otherPlayer in pairs(Players:GetPlayers()) do
-                                        if otherPlayer ~= LocalPlayer and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                                            local dist = (otherPlayer.Character.HumanoidRootPart.Position - eggPos).Magnitude
-                                            
-                                            -- Jika pemain lain jaraknya kurang dari 15 stud dari telur
-                                            if dist <= 15 then
-                                                -- 1. Teleport ke target
-                                                myChar.HumanoidRootPart.CFrame = otherPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -2)
-                                                
-                                                -- 2. Pukul berkali-kali sampai telur lepas/jatuh
-                                                for i = 1, 3 do
-                                                    EquipAndHit()
-                                                    task.wait(0.05)
-                                                end
-                                                
-                                                -- 3. Curi Telur secara instan
-                                                prompt.HoldDuration = 0
-                                                fireproximityprompt(prompt)
-                                                task.wait(0.1)
-                                                
-                                                -- 4. Langsung kembali ke Base
-                                                if BaseCFrame then
-                                                    myChar.HumanoidRootPart.CFrame = BaseCFrame
-                                                end
-                                                break
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(0.1)
+                    task.wait(0.5)
                 end
             end)
         end
@@ -223,8 +195,20 @@ function LoadMainScript()
     ---------------------------------------------------------
     -- TAB 3 & 4: PLAYER SETTINGS & INFO
     ---------------------------------------------------------
+    
+    Tabs.Player:AddSlider("FlySpeedSlider", {
+        Title = "Kecepatan Meluncur Terbang",
+        Default = 120,
+        Min = 50,
+        Max = 300,
+        Rounding = 0,
+        Callback = function(Value)
+            FlySpeed = Value
+        end
+    })
+
     Tabs.Player:AddSlider("WalkSpeed", {
-        Title = "Speed Jalan",
+        Title = "Kecepatan Jalan (WalkSpeed)",
         Default = 16,
         Min = 16,
         Max = 250,
@@ -240,16 +224,18 @@ function LoadMainScript()
 
     Tabs.Credits:AddParagraph({
         Title = SCRIPT_NAME,
-        Content = "Script dikembangkan khusus untuk game Mencuri Sebuah Telur oleh " .. DEVELOPER_NAME .. "."
+        Content = "Developed by " .. DEVELOPER_NAME .. ".\nSpecial Features: Auto Detect Secret, Eternal, Divine Eggs."
     })
 
-    if SCRIPT_LOGO_URL ~= "" and SCRIPT_LOGO_URL ~= "rbxassetid://0" then
-        Tabs.Credits:AddImage("ScriptLogo", { Title = "Logo", Image = SCRIPT_LOGO_URL })
-    end
+    -- MENAMPILKAN LOGO TOP4TOP
+    Tabs.Credits:AddImage("ScriptLogo", {
+        Title = "Logo Script OMOX PRO",
+        Image = SCRIPT_LOGO_URL
+    })
 
     Fluent:Notify({
         Title = SCRIPT_NAME,
-        Content = "Berhasil Login! OMOX PRO Siap Digunakan.",
+        Content = "Script Berhasil Di-load! Logo & Fitur Siap Digunakan.",
         Duration = 4
     })
 end
