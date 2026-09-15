@@ -21,31 +21,34 @@ local LocalPlayer = Players.LocalPlayer
 local PasswordInput = ""
 
 -- ---------------------------------------------------------
--- FLOATING BUTTON / WIDGET AWAL (KECIL ELEGAN DI SCREEN)
+-- FLOATING WIDGET (TOMBOL LOGO MELAYANG DI HP)
 -- ---------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "OMOXPRO_Widget"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
-local FloatBtn = Instance.new("ImageButton")
+local FloatBtn = Instance.new("TextButton")
 FloatBtn.Name = "LogoWidget"
 FloatBtn.Parent = ScreenGui
-FloatBtn.Size = UDim2.new(0, 55, 0, 55)
-FloatBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
-FloatBtn.Image = SCRIPT_LOGO_URL
-FloatBtn.BackgroundColor3 = Color3.fromRGB(30, 20, 50)
+FloatBtn.Size = UDim2.new(0, 50, 0, 50)
+FloatBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
+FloatBtn.Text = "OMOX"
+FloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatBtn.TextScaled = true
+FloatBtn.Font = Enum.Font.SourceSansBold
+FloatBtn.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
 FloatBtn.Active = true
-FloatBtn.Draggable = true -- Bisa digeser/didrag di layar HP
+FloatBtn.Draggable = true
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = FloatBtn
 
 local UIStroke = Instance.new("UIStroke")
 UIStroke.Parent = FloatBtn
-UIStroke.Color = Color3.fromRGB(160, 100, 255)
-UIStroke.Thickness = 2.5
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim me = UDim.new(0, 14)
-UICorner.Parent = FloatBtn
+UIStroke.Color = Color3.fromRGB(180, 120, 255)
+UIStroke.Thickness = 2
 
 -- ---------------------------------------------------------
 -- TAMPILAN LOGIN PASSWORD (MODERN AMETHYST)
@@ -59,18 +62,12 @@ local function ShowLoginUI()
         Title = SCRIPT_NAME .. " ✦ Authentication",
         SubTitle = "Developer: " .. DEVELOPER_NAME,
         TabWidth = 140,
-        Size = UDim2.fromOffset(440, 280),
+        Size = UDim2.fromOffset(420, 260),
         Theme = "Amethyst",
         MinimizeKey = Enum.KeyCode.RightControl
     })
 
     local PassTab = PassWindow:AddTab({ Title = "Login", Icon = "lock" })
-
-    -- MENAMPILKAN FOTO LOGO DI MENU LOGIN
-    PassTab:AddImage("LoginLogo", {
-        Title = "OMOX PRO Access",
-        Image = SCRIPT_LOGO_URL
-    })
 
     PassTab:AddInput("InputPass", {
         Title = "Masukkan Password",
@@ -104,7 +101,7 @@ local function ShowLoginUI()
     })
 end
 
--- Klik Widget Melayang untuk Buka Login
+-- Klik Tombol OMOX di Layar Untuk Buka Login
 FloatBtn.MouseButton1Click:Connect(function()
     ShowLoginUI()
 end)
@@ -262,7 +259,7 @@ function LoadMainScript()
                         if not BaseCFrame then return end
                         
                         local targetPrompt = GetPriorityEgg()
-                        if targetPrompt then
+                        if targetPrompt me then
                             local eggPart = targetPrompt.Parent:IsA("BasePart") and targetPrompt.Parent or targetPrompt.Parent:FindFirstChildWhichIsA("BasePart")
                             if eggPart then
                                 FlyToCFrame(eggPart.CFrame)
