@@ -6,7 +6,7 @@ local DEVELOPER_NAME = "FENGXIU"
 local PASSWORD_CORRECT = "fengxomo"
 
 -- [ LINK FOTO / LOGO SCRIPT ]
-local SCRIPT_LOGO_URL = "rbxassetid://0" 
+local SCRIPT_LOGO_URL = "https://f.top4top.io/p_39100kq8x0.jpg" 
 
 -- =========================================================
 -- LOAD UI LIBRARY & SERVICES
