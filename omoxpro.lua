@@ -1,350 +1,413 @@
--- =========================================================
--- SCRIPT INFORMATION & CONFIGURATION
--- =========================================================
-local SCRIPT_NAME = "OMOX PRO"
-local DEVELOPER_NAME = "FENGXIU"
-local PASSWORD_CORRECT = "fengxomo"
+--[[
+    OMOX PRO - Break and Steal an Egg (V7.0)
+    Developer: FengXiu
+    Inspired by: Serenity Hub, Ouroboros Hub, Spiritual Gaming
+    Features: Auto Farm, Instant Steal, Event, Filter, Hatch, Sell, ESP, Movement.
+]]
 
--- [ LINK FOTO / LOGO TOP4TOP ]
-local SCRIPT_LOGO_URL = "https://f.top4top.io/p_39100kq8x0.jpg" 
+-- ==========================================
+-- 1. LOAD UI LIBRARY (Linoria)
+-- ==========================================
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/addons/SaveManager.lua"))()
 
--- =========================================================
--- LOAD SERVICES & LIBRARIES
--- =========================================================
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local TweenService = game:GetService("TweenService")
+local Window = Library:CreateWindow({
+    Title = 'OMOX PRO | Break & Steal',
+    Footer = 'Dev: FengXiu | V7.0 (Ultimate)',
+    Size = UDim2.fromOffset(620, 500),
+    Transparency = 0.2,
+    Theme = 'Dark',
+    MinimizeKey = Enum.KeyCode.RightShift
+})
+
+local Tabs = {
+    Farm = Window:AddTab('Auto Farm', 'home'),
+    Event = Window:AddTab('Event & Hell', 'zap'),
+    Pets = Window:AddTab('Pets & Bank', 'box'),
+    Visuals = Window:AddTab('ESP & Visuals', 'eye'),
+    Misc = Window:AddTab('Settings', 'settings')
+}
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+-- Services
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
-local PasswordInput = ""
+-- State Variables
+local AutoFarm = false
+local InstantSteal = false
+local AutoHatch = false
+local AutoPlace = false
+local AutoSell = false
+local AutoUpgrade = false
+local AutoEquip = false
+local AutoDemon = false
+local TargetZone = "All"
+local TargetRarity = "All"
+local MinValue = 0
+local SpecificPet = ""
+local WalkSpeed = 16
+local FlyEnabled = false
+local NoClip = false
 
--- ---------------------------------------------------------
--- FLOATING WIDGET (TOMBOL LOGO MELAYANG DI HP)
--- ---------------------------------------------------------
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "OMOXPRO_Widget"
-ScreenGui.Parent = CoreGui
-ScreenGui.ResetOnSpawn = false
+-- ==========================================
+-- 2. CORE FUNCTIONS
+-- ==========================================
 
-local FloatBtn = Instance.new("TextButton")
-FloatBtn.Name = "LogoWidget"
-FloatBtn.Parent = ScreenGui
-FloatBtn.Size = UDim2.new(0, 50, 0, 50)
-FloatBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
-FloatBtn.Text = "OMOX"
-FloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-FloatBtn.TextScaled = true
-FloatBtn.Font = Enum.Font.SourceSansBold
-FloatBtn.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
-FloatBtn.Active = true
-FloatBtn.Draggable = true
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = FloatBtn
-
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Parent = FloatBtn
-UIStroke.Color = Color3.fromRGB(180, 120, 255)
-UIStroke.Thickness = 2
-
--- ---------------------------------------------------------
--- TAMPILAN LOGIN PASSWORD (MODERN AMETHYST)
--- ---------------------------------------------------------
-local PassWindow = nil
-
-local function ShowLoginUI()
-    if PassWindow then return end
-    
-    PassWindow = Fluent:CreateWindow({
-        Title = SCRIPT_NAME .. " ✦ Authentication",
-        SubTitle = "Developer: " .. DEVELOPER_NAME,
-        TabWidth = 140,
-        Size = UDim2.fromOffset(420, 260),
-        Theme = "Amethyst",
-        MinimizeKey = Enum.KeyCode.RightControl
-    })
-
-    local PassTab = PassWindow:AddTab({ Title = "Login", Icon = "lock" })
-
-    PassTab:AddInput("InputPass", {
-        Title = "Masukkan Password",
-        Default = "",
-        Numeric = false,
-        Finished = false,
-        Callback = function(Value)
-            PasswordInput = Value
-        end
-    })
-
-    PassTab:AddButton({
-        Title = "Unlock Script",
-        Description = "Akses Menu Utama OMOX PRO",
-        Callback = function()
-            local cleanInput = string.gsub(PasswordInput or "", "^%s*(.-)%s*$", "%1")
-            
-            if string.lower(cleanInput) == string.lower(PASSWORD_CORRECT) then
-                Fluent:Destroy()
-                ScreenGui:Destroy()
-                task.wait(0.3)
-                LoadMainScript()
-            else
-                Fluent:Notify({
-                    Title = "Password Salah!",
-                    Content = "Password yang kamu masukkan tidak valid.",
-                    Duration = 3
-                })
+-- Helper: Cari Base / Safe Zone
+local function getBase()
+    for _, name in pairs({"SafeZone", "Safe Zone", "Base", "Spawn", "Home", "Pen"}) do
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj.Name:lower():find(name:lower()) and (obj:IsA("BasePart") or obj:IsA("Model")) then
+                return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart") or obj
             end
         end
-    })
+    end
+    return nil
 end
 
--- Klik Tombol OMOX di Layar Untuk Buka Login
-FloatBtn.MouseButton1Click:Connect(function()
-    ShowLoginUI()
+-- Helper: Fire ProximityPrompt
+local function firePrompt(obj)
+    local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if prompt then
+        fireproximityprompt(prompt)
+        return true
+    end
+    return false
+end
+
+-- Helper: Filter Telur / Pet
+local function isTarget(obj)
+    local name = obj.Name:lower()
+    if TargetZone ~= "All" and not name:find(TargetZone:lower()) then return false end
+    if TargetRarity ~= "All" and not name:find(TargetRarity:lower()) then return false end
+    if SpecificPet ~= "" and not name:find(SpecificPet:lower()) then return false end
+    return true
+end
+
+-- Helper: Cari Objek Terdekat
+local function getNearest(targetName, isEgg)
+    local nearest, minDist = nil, math.huge
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    local hrp = char.HumanoidRootPart
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name:lower():find(targetName:lower()) then
+            if isEgg and not isTarget(obj) then continue end
+            local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if part then
+                local dist = (part.Position - hrp.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    nearest = obj
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+-- ==========================================
+-- 3. TAB FARM (AUTO FARM & INSTANT STEAL)
+-- ==========================================
+local FarmGroup = Tabs.Farm:AddLeftGroupbox('Auto Farm')
+
+FarmGroup:AddToggle('AutoFarmToggle', {
+    Text = 'Auto Farm (Break & Steal)',
+    Default = false,
+    Callback = function(Value)
+        AutoFarm = Value
+        if AutoFarm then
+            task.spawn(function()
+                while AutoFarm do
+                    task.wait(0.5)
+                    pcall(function()
+                        local egg = getNearest("egg", true)
+                        if egg then
+                            local part = egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+                            if part then
+                                LocalPlayer.Character.HumanoidRootPart.CFrame = part.CFrame * CFrame.new(0, 3, 0)
+                                task.wait(0.1)
+                                firePrompt(egg)
+                                -- Cari pet & balik ke base
+                                task.wait(0.3)
+                                local pet = getNearest("pet", false) or getNearest("animal", false)
+                                if pet then
+                                    local pPart = pet.PrimaryPart or pet:FindFirstChildWhichIsA("BasePart")
+                                    if pPart then
+                                        LocalPlayer.Character.HumanoidRootPart.CFrame = pPart.CFrame * CFrame.new(0, 3, 0)
+                                        task.wait(0.1)
+                                        firePrompt(pet)
+                                        local base = getBase()
+                                        if base then LocalPlayer.Character.HumanoidRootPart.CFrame = base.CFrame * CFrame.new(0, 5, 0) end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+})
+
+FarmGroup:AddToggle('InstantStealToggle', {
+    Text = 'Instant Steal (Tembus Map)',
+    Default = false,
+    Callback = function(Value)
+        InstantSteal = Value
+        if InstantSteal then
+            task.spawn(function()
+                while InstantSteal do
+                    task.wait(0.1)
+                    pcall(function()
+                        for _, obj in pairs(Workspace:GetDescendants()) do
+                            if obj:IsA("Model") and (obj.Name:lower():find("pet") or obj.Name:lower():find("animal")) then
+                                local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                                if part then
+                                    LocalPlayer.Character.HumanoidRootPart.CFrame = part.CFrame * CFrame.new(0, 3, 0)
+                                    task.wait(0.05)
+                                    firePrompt(obj)
+                                end
+                            end
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+})
+
+-- ==========================================
+-- 4. TAB EVENT (DEMON & HELL)
+-- ==========================================
+local EventGroup = Tabs.Event:AddLeftGroupbox('Demon Event')
+
+EventGroup:AddToggle('AutoDemonToggle', {
+    Text = 'Auto Demon Event',
+    Default = false,
+    Callback = function(Value)
+        AutoDemon = Value
+        if AutoDemon then
+            task.spawn(function()
+                while AutoDemon do
+                    task.wait(1)
+                    pcall(function()
+                        local boss = getNearest("demon", false) or getNearest("boss", false)
+                        if boss then
+                            local part = boss.PrimaryPart or boss:FindFirstChildWhichIsA("BasePart")
+                            if part then
+                                LocalPlayer.Character.HumanoidRootPart.CFrame = part.CFrame * CFrame.new(0, 5, 0)
+                                local tool = LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
+                                if tool then tool:Activate() end
+                            end
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+})
+
+EventGroup:AddButton('Auto Join Hell', function()
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and (obj.Name:lower():find("hell") or obj.Name:lower():find("portal")) then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = obj.CFrame * CFrame.new(0, 5, 0)
+            break
+        end
+    end
 end)
 
--- ---------------------------------------------------------
--- SCRIPT UTAMA (ADVANCED AUTO STEAL & FLY ALL EGGS)
--- ---------------------------------------------------------
-function LoadMainScript()
-    local Window = Fluent:CreateWindow({
-        Title = SCRIPT_NAME .. " ✦ Steal An Egg",
-        SubTitle = "By " .. DEVELOPER_NAME,
-        TabWidth = 160,
-        Size = UDim2.fromOffset(580, 420),
-        Theme = "Amethyst",
-        MinimizeKey = Enum.KeyCode.RightControl
-    })
+-- ==========================================
+-- 5. TAB PETS (HATCH, SELL, EQUIP)
+-- ==========================================
+local PetGroup = Tabs.Pets:AddLeftGroupbox('Pet Management')
 
-    local Tabs = {
-        AutoFarm = Window:AddTab({ Title = "Auto Farm Base", Icon = "target" }),
-        Main = Window:AddTab({ Title = "Egg Features", Icon = "egg" }),
-        Player = Window:AddTab({ Title = "Player", Icon = "user" }),
-        Credits = Window:AddTab({ Title = "Info & Logo", Icon = "info" })
-    }
-
-    local AutoAllEggsToggle = false
-    local AutoRareEggsToggle = false
-    local InstantHoldToggle = false
-    local FlySpeed = 120
-    local BaseWaitTime = 1.5
-    local BaseCFrame = nil
-
-    local function FlyToCFrame(targetCFrame)
-        local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-        local hrp = char.HumanoidRootPart
-        
-        local distance = (hrp.Position - targetCFrame.Position).Magnitude
-        local duration = distance / FlySpeed
-        
-        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame * CFrame.new(0, 3, 0)})
-        tween:Play()
-        tween.Completed:Wait()
-    end
-
-    local function GetNearestEgg()
-        local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
-        
-        local nearestPrompt = nil
-        local shortestDist = math.huge
-        
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") and obj.Enabled then
-                local parentPart = obj.Parent:IsA("BasePart") and obj.Parent or obj.Parent:FindFirstChildWhichIsA("BasePart")
-                if parentPart then
-                    local dist = (char.HumanoidRootPart.Position - parentPart.Position).Magnitude
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        nearestPrompt = obj
-                    end
-                end
-            end
-        end
-        return nearestPrompt
-    end
-
-    local function GetPriorityEgg()
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") and obj.Enabled then
-                local eggName = string.lower(obj.Parent.Name .. " " .. obj.ObjectText .. " " .. obj.ActionText)
-                if string.find(eggName, "secret") or string.find(eggName, "eternal") or string.find(eggName, "divine") then
-                    return obj
-                end
-            end
-        end
-        return nil
-    end
-
-    ---------------------------------------------------------
-    -- TAB 1: AUTO FARM (WITH BASE DELAY PROTECTION)
-    ---------------------------------------------------------
-    
-    Tabs.AutoFarm:AddButton({
-        Title = "1. Set Posisi Base / Tanaman (Wajib)",
-        Description = "Berdiri di area Base kamu lalu klik tombol ini",
-        Callback = function()
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                BaseCFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
-                Fluent:Notify({
-                    Title = "Base Saved!",
-                    Content = "Koordinat Base berhasil disimpan.",
-                    Duration = 3
-                })
-            end
-        end
-    })
-
-    Tabs.AutoFarm:AddSlider("BaseDelaySlider", {
-        Title = "Jeda Diam di Base (Detik)",
-        Description = "Atur waktu tunggu di Base agar telur tersimpan sempurna",
-        Default = 1.5,
-        Min = 0.5,
-        Max = 5.0,
-        Rounding = 1,
-        Callback = function(Value)
-            BaseWaitTime = Value
-        end
-    })
-
-    Tabs.AutoFarm:AddToggle("AutoAllFarm", {
-        Title = "Auto Farm SEMUA Telur (Fly + Base)",
-        Default = false,
-        Callback = function(Value)
-            AutoAllEggsToggle = Value
+PetGroup:AddToggle('AutoHatchToggle', {
+    Text = 'Auto Hatch',
+    Default = false,
+    Callback = function(Value)
+        AutoHatch = Value
+        if AutoHatch then
             task.spawn(function()
-                while AutoAllEggsToggle do
+                while AutoHatch do
+                    task.wait(1)
                     pcall(function()
-                        if not BaseCFrame then
-                            Fluent:Notify({ Title = "Warning!", Content = "Klik 'Set Posisi Base' terlebih dahulu!", Duration = 3 })
-                            AutoAllEggsToggle = false
-                            return
-                        end
-                        
-                        local targetPrompt = GetNearestEgg()
-                        if targetPrompt then
-                            local eggPart = targetPrompt.Parent:IsA("BasePart") and targetPrompt.Parent or targetPrompt.Parent:FindFirstChildWhichIsA("BasePart")
-                            if eggPart then
-                                FlyToCFrame(eggPart.CFrame)
-                                task.wait(0.1)
-                                
-                                targetPrompt.HoldDuration = 0
-                                fireproximityprompt(targetPrompt)
-                                task.wait(0.2)
-                                
-                                FlyToCFrame(BaseCFrame)
-                                task.wait(BaseWaitTime)
+                        for _, obj in pairs(Workspace:GetDescendants()) do
+                            if obj:IsA("Model") and (obj.Name:lower():find("hatch") or obj.Name:lower():find("incubator")) then
+                                firePrompt(obj)
                             end
                         end
                     end)
-                    task.wait(0.2)
                 end
             end)
         end
-    })
+    end
+})
 
-    Tabs.AutoFarm:AddToggle("AutoRareSteal", {
-        Title = "Auto Snipe RARE ONLY (Secret/Eternal/Divine)",
-        Default = false,
-        Callback = function(Value)
-            AutoRareEggsToggle = Value
+PetGroup:AddToggle('AutoSellToggle', {
+    Text = 'Auto Sell Junk Pets',
+    Default = false,
+    Callback = function(Value)
+        AutoSell = Value
+        if AutoSell then
             task.spawn(function()
-                while AutoRareEggsToggle do
+                while AutoSell do
+                    task.wait(2)
                     pcall(function()
-                        if not BaseCFrame then return end
-                        
-                        local targetPrompt = GetPriorityEgg()
-                        if targetPrompt me then
-                            local eggPart = targetPrompt.Parent:IsA("BasePart") and targetPrompt.Parent or targetPrompt.Parent:FindFirstChildWhichIsA("BasePart")
-                            if eggPart then
-                                FlyToCFrame(eggPart.CFrame)
-                                task.wait(0.1)
-                                
-                                targetPrompt.HoldDuration = 0
-                                fireproximityprompt(targetPrompt)
-                                task.wait(0.2)
-                                
-                                FlyToCFrame(BaseCFrame)
-                                task.wait(BaseWaitTime)
+                        for _, obj in pairs(Workspace:GetDescendants()) do
+                            if obj:IsA("Model") and (obj.Name:lower():find("sell") or obj.Name:lower():find("shop")) then
+                                firePrompt(obj)
                             end
                         end
                     end)
-                    task.wait(0.2)
                 end
             end)
         end
-    })
+    end
+})
 
-    ---------------------------------------------------------
-    -- TAB 2: GENERAL EGG FEATURES
-    ---------------------------------------------------------
-    
-    Tabs.Main:AddToggle("InstantHold", {
-        Title = "Instant Steal All Prompts (0s Hold)",
-        Default = false,
-        Callback = function(Value)
-            InstantHoldToggle = Value
+PetGroup:AddToggle('AutoEquipToggle', {
+    Text = 'Auto Equip Best Pets',
+    Default = false,
+    Callback = function(Value)
+        AutoEquip = Value
+        if AutoEquip then
             task.spawn(function()
-                while InstantHoldToggle do
-                    for _, v in pairs(Workspace:GetDescendants()) do
-                        if v:IsA("ProximityPrompt") then
-                            v.HoldDuration = 0
+                while AutoEquip do
+                    task.wait(3)
+                    pcall(function()
+                        for _, obj in pairs(Workspace:GetDescendants()) do
+                            if obj:IsA("Model") and (obj.Name:lower():find("equip") or obj.Name:lower():find("index")) then
+                                firePrompt(obj)
+                            end
                         end
+                    end)
+                end
+            end)
+        end
+    end
+})
+
+-- ==========================================
+-- 6. TAB VISUALS (ESP)
+-- ==========================================
+local VisGroup = Tabs.Visuals:AddLeftGroupbox('ESP Settings')
+
+VisGroup:AddToggle('EggESP', {
+    Text = 'Egg ESP',
+    Default = false,
+    Callback = function(Value)
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("Model") then
+                local old = obj:FindFirstChild("OMOX_ESP")
+                if Value then
+                    if not old and obj.Name:lower():find("egg") and isTarget(obj) then
+                        local hl = Instance.new("Highlight")
+                        hl.Parent = obj
+                        hl.FillColor = Color3.fromRGB(0, 255, 0)
+                        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        hl.Name = "OMOX_ESP"
                     end
-                    task.wait(0.5)
+                else
+                    if old then old:Destroy() end
                 end
-            end)
+            end
         end
-    })
+    end
+})
 
-    ---------------------------------------------------------
-    -- TAB 3 & 4: PLAYER SETTINGS & INFO
-    ---------------------------------------------------------
-    
-    Tabs.Player:AddSlider("FlySpeedSlider", {
-        Title = "Kecepatan Meluncur Terbang",
-        Default = 120,
-        Min = 50,
-        Max = 300,
-        Rounding = 0,
-        Callback = function(Value)
-            FlySpeed = Value
-        end
-    })
-
-    Tabs.Player:AddSlider("WalkSpeed", {
-        Title = "Kecepatan Jalan (WalkSpeed)",
-        Default = 16,
-        Min = 16,
-        Max = 250,
-        Rounding = 0,
-        Callback = function(Value)
-            pcall(function()
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                    LocalPlayer.Character.Humanoid.WalkSpeed = Value
+VisGroup:AddToggle('DemonESP', {
+    Text = 'Demon/Boss ESP',
+    Default = false,
+    Callback = function(Value)
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("Model") and (obj.Name:lower():find("demon") or obj.Name:lower():find("boss")) then
+                local old = obj:FindFirstChild("OMOX_DEMON_ESP")
+                if Value then
+                    if not old then
+                        local hl = Instance.new("Highlight")
+                        hl.Parent = obj
+                        hl.FillColor = Color3.fromRGB(255, 0, 255)
+                        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        hl.Name = "OMOX_DEMON_ESP"
+                    end
+                else
+                    if old then old:Destroy() end
                 end
-            end)
+            end
         end
-    })
+    end
+})
 
-    Tabs.Credits:AddParagraph({
-        Title = SCRIPT_NAME,
-        Content = "Developed by " .. DEVELOPER_NAME .. ".\nFeatures: Fly Auto Farm All Eggs & Rare Egg Snipe with Base Safe-Delay."
-    })
+-- ==========================================
+-- 7. TAB MISC (MOVEMENT)
+-- ==========================================
+local MiscGroup = Tabs.Misc:AddLeftGroupbox('Character')
 
-    Tabs.Credits:AddImage("ScriptLogo", {
-        Title = "Logo Script OMOX PRO",
-        Image = SCRIPT_LOGO_URL
-    })
+MiscGroup:AddSlider('SpeedSlider', {
+    Text = 'WalkSpeed',
+    Default = 16, Min = 16, Max = 250, Rounding = 1,
+    Callback = function(Value) WalkSpeed = Value end
+})
 
-    Fluent:Notify({
-        Title = SCRIPT_NAME,
-        Content = "Script Berhasil Di-load! Enjoy OMOX PRO.",
-        Duration = 4
-    })
-end
+MiscGroup:AddToggle('FlyToggle', {
+    Text = 'Fly',
+    Default = false,
+    Callback = function(Value)
+        FlyEnabled = Value
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local hrp = char.HumanoidRootPart
+            local bg = hrp:FindFirstChild("OMOX_FLY")
+            if FlyEnabled and not bg then
+                bg = Instance.new("BodyVelocity")
+                bg.Name = "OMOX_FLY"
+                bg.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bg.Velocity = Vector3.new(0,0,0)
+                bg.Parent = hrp
+            elseif not FlyEnabled and bg then
+                bg:Destroy()
+            end
+        end
+    end
+})
+
+MiscGroup:AddToggle('NoClipToggle', {
+    Text = 'No Clip',
+    Default = false,
+    Callback = function(Value) NoClip = Value end
+})
+
+-- Fly & Speed & NoClip Loop
+RunService.RenderStepped:Connect(function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.WalkSpeed = WalkSpeed
+        
+        if NoClip then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+
+        if FlyEnabled and char:FindFirstChild("HumanoidRootPart") then
+            local hrp = char.HumanoidRootPart
+            local bg = hrp:FindFirstChild("OMOX_FLY")
+            if bg then
+                local moveDir = Workspace.CurrentCamera.CFrame.LookVector
+                bg.Velocity = moveDir * 50
+            end
+        end
+    end
+end)
+
+Library:Init()
