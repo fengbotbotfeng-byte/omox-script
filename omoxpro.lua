@@ -1,77 +1,64 @@
 -- ================================================
--- Script Name : OMOX PRO (Final & Optimized Version)
+-- Script Name : OMOX PRO (With Custom Profile/Image)
 -- Developer   : FengXiu
 -- Target Game : Break and Steal an Egg
 -- ================================================
 
 local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
 
+local ImageUrl = "https://l.top4top.io/p_3954ea9t30.jpg"
+
 local Window = OrionLib:MakeWindow({
-    Name = "OMOX PRO | Break and Steal an Egg",
+    Name = "OMOX PRO v9.2 | FengXiu",
     HidePremium = false,
     SaveConfig = true,
-    ConfigFolder = "OmoxProConfig",
-    IntroText = "OMOX PRO by FengXiu"
+    ConfigFolder = "OmoxProHub",
+    IntroText = "OMOX PRO Loading...",
+    IntroIcon = ImageUrl
 })
 
--- Global Variables
-_G.AutoBestZone = false
-_G.AutoBreak = false
-_G.AutoStealFilter = false
-_G.MinPetValue = 100000000000 -- Default 100B
-_G.SafeZoneCFrame = nil
-
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- Safe Character Loader
+-- Configuration Variables
+_G.AutoFarmBest = false
+_G.AutoFilterSteal = false
+_G.MinPetValue = 100000000000 -- 100B Default
+_G.SafeZoneCFrame = nil
+
 local function getHRP()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    if char then
-        return char:FindFirstChild("HumanoidRootPart")
-    end
-    return nil
+    return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Fixed Converter for Values (100B, 1M, 500K)
 local function parseValue(valInput)
     if type(valInput) == "number" then return valInput end
     if type(valInput) ~= "string" then return 0 end
-    
     local str = valInput:upper():gsub(",", ""):gsub("%$", ""):gsub("%s+", "")
     local num = tonumber(str:match("[%d%.]+")) or 0
-    
-    if str:find("B") then
-        return num * 1000000000 -- 1 Billion = 10^9
-    elseif str:find("M") then
-        return num * 1000000
-    elseif str:find("K") then
-        return num * 1000
-    end
+    if str:find("B") then return num * 1e9
+    elseif str:find("M") then return num * 1e6
+    elseif str:find("K") then return num * 1e3 end
     return num
 end
 
--- Best Zone Finder Logic
 local function getBestZone()
     local bestZone = nil
-    local maxDistance = -1
+    local maxDist = -1
     local origin = Vector3.new(0, 0, 0)
     
-    local possibleContainers = {workspace:FindFirstChild("Zones"), workspace:FindFirstChild("Areas"), workspace}
-    
-    for _, container in pairs(possibleContainers) do
-        if container then
-            for _, obj in pairs(container:GetChildren()) do
-                if obj:IsA("BasePart") or (obj:IsA("Model") and obj.PrimaryPart) then
-                    local name = obj.Name:lower()
-                    if name:find("zone") or name:find("area") or name:find("egg") then
-                        local pos = obj:IsA("BasePart") and obj.Position or obj.PrimaryPart.Position
-                        local dist = (pos - origin).Magnitude
-                        if dist > maxDistance then
-                            maxDistance = dist
-                            bestZone = obj
-                        end
-                    end
+    local mapFolder = Workspace:FindFirstChild("Map") or Workspace:FindFirstChild("Zones") or Workspace
+    for _, obj in pairs(mapFolder:GetChildren()) do
+        if obj:IsA("BasePart") or (obj:IsA("Model") and obj.PrimaryPart) then
+            local name = obj.Name:lower()
+            if name:find("zone") or name:find("area") or name:find("island") or name:find("stage") then
+                local pos = obj:IsA("BasePart") and obj.Position or obj.PrimaryPart.Position
+                local dist = (pos - origin).Magnitude
+                if dist > maxDist then
+                    maxDist = dist
+                    bestZone = obj
                 end
             end
         end
@@ -79,63 +66,38 @@ local function getBestZone()
     return bestZone
 end
 
--- Universal Interactor (Prompt / Click)
-local function interactWith(obj)
-    if not obj or not obj.Parent then return end
-    pcall(function()
-        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-        if prompt then fireproximityprompt(prompt) end
-        local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
-        if click then fireclickdetector(click) end
-    end)
-end
-
 -- Tabs
-local MainTab = Window:MakeTab({ Name = "Auto Farm & Zone", Icon = "rbxassetid://4483345998" })
-local FilterTab = Window:MakeTab({ Name = "Pet Filter & Safe Zone", Icon = "rbxassetid://4483345998" })
-local CreditsTab = Window:MakeTab({ Name = "Credits", Icon = "rbxassetid://4483345998" })
+local FarmTab = Window:MakeTab({ Name = "Auto Farm", Icon = ImageUrl })
+local FilterTab = Window:MakeTab({ Name = "Pet Filter & SafeZone", Icon = ImageUrl })
 
--- Feature 1: Auto Best Zone
-MainTab:AddToggle({
-    Name = "Auto Go to Best Zone",
+-- Auto Farm Best Zone
+FarmTab:AddToggle({
+    Name = "Auto Best Zone & Farm Eggs",
     Default = false,
     Callback = function(Value)
-        _G.AutoBestZone = Value
+        _G.AutoFarmBest = Value
         task.spawn(function()
-            while _G.AutoBestZone do
-                task.wait(1)
+            while _G.AutoFarmBest do
+                task.wait(0.5)
                 pcall(function()
                     local hrp = getHRP()
+                    if not hrp then return end
+
                     local zone = getBestZone()
-                    if hrp and zone then
+                    if zone then
                         local targetCF = zone:IsA("BasePart") and zone.CFrame or zone.PrimaryPart.CFrame
-                        hrp.CFrame = targetCF + Vector3.new(0, 4, 0)
+                        hrp.CFrame = targetCF + Vector3.new(0, 5, 0)
                     end
-                end)
-            end
-        end)
-    end
-})
 
--- Feature 2: Auto Break
-MainTab:AddToggle({
-    Name = "Auto Break Eggs (Smart Radius)",
-    Default = false,
-    Callback = function(Value)
-        _G.AutoBreak = Value
-        task.spawn(function()
-            while _G.AutoBreak do
-                task.wait(0.1)
-                pcall(function()
-                    local hrp = getHRP()
-                    if hrp then
-                        for _, obj in pairs(workspace:GetDescendants()) do
-                            if not _G.AutoBreak then break end
-                            if obj:IsA("BasePart") and (obj.Name:lower():find("egg") or obj.Name:lower():find("telur")) then
-                                if (hrp.Position - obj.Position).Magnitude <= 25 then
-                                    firetouchinterest(hrp, obj, 0)
-                                    firetouchinterest(hrp, obj, 1)
-                                end
+                    for _, obj in pairs(Workspace:GetChildren()) do
+                        if not _G.AutoFarmBest then break end
+                        if obj:IsA("Model") and (obj.Name:lower():find("egg") or obj.Name:lower():find("telur")) then
+                            local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            if part and (hrp.Position - part.Position).Magnitude < 40 then
+                                hrp.CFrame = part.CFrame + Vector3.new(0, 2, 0)
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if prompt then fireproximityprompt(prompt) end
+                                task.wait(0.2)
                             end
                         end
                     end
@@ -145,24 +107,24 @@ MainTab:AddToggle({
     end
 })
 
--- Feature 3: Set Safe Zone
+-- Set Safe Zone Position
 FilterTab:AddButton({
-    Name = "Set Safe Zone Position",
+    Name = "Set Safe Zone Posisi Sekarang",
     Callback = function()
         local hrp = getHRP()
         if hrp then
             _G.SafeZoneCFrame = hrp.CFrame
             OrionLib:MakeNotification({
                 Name = "OMOX PRO",
-                Content = "Posisi Safe Zone berhasil disimpan!",
-                Image = "rbxassetid://4483345998",
+                Content = "Safe Zone terkunci!",
+                Image = ImageUrl,
                 Time = 3
             })
         end
     end
 })
 
--- Feature 4: Value Input
+-- Min Value Input
 FilterTab:AddTextbox({
     Name = "Minimal Pet Value (Contoh: 100B)",
     Default = "100B",
@@ -172,33 +134,29 @@ FilterTab:AddTextbox({
     end
 })
 
--- Feature 5: Auto Steal & Secure (> Min Value)
+-- Auto Steal (> Min Value)
 FilterTab:AddToggle({
-    Name = "Auto Steal Best Pet (> Min Value)",
+    Name = "Auto Steal Pet (> 100B) & Safe Zone",
     Default = false,
     Callback = function(Value)
-        _G.AutoStealFilter = Value
-        
-        -- Auto save safezone jika belum diset manual
+        _G.AutoFilterSteal = Value
         if Value and not _G.SafeZoneCFrame then
             local hrp = getHRP()
             if hrp then _G.SafeZoneCFrame = hrp.CFrame end
         end
 
         task.spawn(function()
-            while _G.AutoStealFilter do
+            while _G.AutoFilterSteal do
                 task.wait(0.3)
                 pcall(function()
                     local hrp = getHRP()
                     if not hrp then return end
 
-                    for _, item in pairs(workspace:GetChildren()) do
-                        if not _G.AutoStealFilter then break end
+                    for _, item in pairs(Workspace:GetChildren()) do
+                        if not _G.AutoFilterSteal then break end
                         if item:IsA("Model") or item:IsA("Tool") then
                             local nameLower = item.Name:lower()
-                            
-                            -- Filter hanya objek yang berkaitan dengan pet / hasil curian
-                            if nameLower:find("pet") or nameLower:find("animal") or name:find("egg") or item:IsA("Tool") then
+                            if nameLower:find("pet") or nameLower:find("animal") or nameLower:find("carrier") then
                                 local valHolder = item:FindFirstChild("Value") or item:FindFirstChild("PetValue") or item:FindFirstChild("Price")
                                 local itemVal = 0
 
@@ -208,20 +166,19 @@ FilterTab:AddToggle({
                                     itemVal = parseValue(item.Name)
                                 end
 
-                                -- Jika nilai pet >= minimal value (di atas 100B)
-                                if itemVal >= _G.MinPetValue or itemVal == 0 then
+                                if itemVal >= _G.MinPetValue then
                                     local targetPart = item:FindFirstChild("Handle") or item.PrimaryPart or item:FindFirstChildOfClass("BasePart")
                                     if targetPart then
-                                        -- 1. Teleport ke lokasi Pet
                                         hrp.CFrame = targetPart.CFrame
                                         task.wait(0.1)
-                                        interactWith(item)
+
+                                        local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                        if prompt then fireproximityprompt(prompt) end
                                         task.wait(0.2)
 
-                                        -- 2. Bawa balik ke Safe Zone
                                         if _G.SafeZoneCFrame then
                                             hrp.CFrame = _G.SafeZoneCFrame
-                                            task.wait(0.4)
+                                            task.wait(0.5)
                                         end
                                     end
                                 end
@@ -233,10 +190,5 @@ FilterTab:AddToggle({
         end)
     end
 })
-
--- Info
-CreditsTab:AddLabel("Script Name: OMOX PRO")
-CreditsTab:AddLabel("Developer: FengXiu")
-CreditsTab:AddLabel("Status: Verified & Fixed")
 
 OrionLib:Init()
